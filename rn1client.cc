@@ -91,7 +91,7 @@ int pers_dbgpoint_x[100], pers_dbgpoint_y[100], pers_dbgpoint_r[100], pers_dbgpo
 
 double route_start_x, route_start_y;
 
-typedef enum {MODE_INVALID = -1, MODE_ROUTE = 0, MODE_MANUAL_FWD, MODE_MANUAL_BACK, MODE_FORCE_FWD, MODE_FORCE_BACK, MODE_POSE, MODE_ADDCONSTRAINT, MODE_REMCONSTRAINT} click_mode_t;
+typedef enum {MODE_INVALID = -1, MODE_ROUTE = 0, MODE_MANUAL_FWD, MODE_MANUAL_BACK, MODE_FORCE_FWD, MODE_FORCE_BACK, MODE_POSE, MODE_ADDCONSTRAINT, MODE_REMCONSTRAINT, MODE_TEST} click_mode_t;
 click_mode_t click_mode;
 
 double dest_x, dest_y;
@@ -703,7 +703,7 @@ void draw_picture(sf::RenderWindow& win)
 	sf::Vector2i m = sf::Mouse::getPosition(win);
 
 
-	float scale = 8.0;
+	float scale = 5.0;
 
 	sf::Texture t;
 	t.create(pict_xs, pict_ys);
@@ -717,12 +717,12 @@ void draw_picture(sf::RenderWindow& win)
 #ifdef TOF_DEV
 	if(pict_id==100)
 	{
-		pic_y = 15+scale*0*pict_ys+10;
+		pic_y = 15+scale*pict_ys+10;
 		mx -= 15; my -= 15+scale*pict_ys+10;
 	}
 	else if(pict_id==101 || pict_id==110)
 	{
-		pic_y = 15+scale*1*pict_ys+20;
+		pic_y = 15+scale*2*pict_ys+20;
 		mx -= 15; my -= 15+2*scale*pict_ys+20;
 	}
 	else
@@ -1150,13 +1150,140 @@ void send_state_vect()
 	test[0] = 64;
 	test[1] = ((STATE_VECT_LEN)&0xff00)>>8;
 	test[2] = (STATE_VECT_LEN)&0xff;
-	memcpy(&test[3], state_vect_to_send.table, STATE_VECT_LEN);
+	memcpy(&test[3], &state_vect_to_send, STATE_VECT_LEN);
 
 	if(tcpsock.send(test, 3+STATE_VECT_LEN) != sf::Socket::Done)
 	{
 		printf("Send error\n");
 	}
 }
+
+//------------------------------------------------------------------------------------------------
+
+int wait_next(void)
+{
+	while(1)
+	{
+		sf::Vector2i localPosition = sf::Mouse::getPosition(win);
+
+		if(localPosition.x > gui_box_x-5 && localPosition.x < gui_box_x+gui_box_xs+5 && localPosition.y > gui_box_y-5 && localPosition.y < gui_box_y+gui_box_ys+5)
+		{
+			if(gui.check_button_status() == but_test_next)
+				return 0;
+		}
+	}
+}
+
+
+
+
+int move_forward(int back)
+{
+	clear_route(&some_route);
+	
+	int x = dest_x; int y = dest_y;
+
+	uint8_t test[12] = {55 /*DEST*/, 0, 9,   (x>>24)&0xff,(x>>16)&0xff,(x>>8)&0xff,(x>>0)&0xff,
+		(y>>24)&0xff, (y>>16)&0xff, (y>>8)&0xff, (y>>0)&0xff, 0b100 & back};
+
+	if(tcpsock.send(test, 12) != sf::Socket::Done)
+	{
+		printf("Send error\n");
+		sprintf(status_text, "Send error, connection lost?");
+		return 0;
+	}
+	else
+	{
+		sprintf(status_text, "Sent command: move directly (force)");
+		return 1;
+	}	
+}
+
+int turn_test(int back)
+{
+	clear_route(&some_route);
+
+	int x = dest_x; int y = dest_y;
+
+	uint8_t test[12] = {55 /*DEST*/, 0, 9,   (x>>24)&0xff,(x>>16)&0xff,(x>>8)&0xff,(x>>0)&0xff,
+		(y>>24)&0xff, (y>>16)&0xff, (y>>8)&0xff, (y>>0)&0xff, 0b1000};
+
+	if(tcpsock.send(test, 12) != sf::Socket::Done)
+	{
+		printf("Send error\n");
+		sprintf(status_text, "Send error, connection lost?");
+	}
+	else
+	{
+		sprintf(status_text, "Sent command: rotate robot pose");
+	}
+}
+
+int go_1_meter(int back)
+{
+	if(back == 1)
+	{
+		if(cur_angle < 180)
+			cur_angle += 180;
+		else if(cur_angle >= 180)
+			cur_angle -= 180;
+	}
+
+	dest_x = cos(cur_angle)*1000 + cur_x;
+	dest_y = sin(cur_angle)*1000 + cur_y;
+	
+	if(move_forward(back) == 1)		
+		return 1;					
+	else
+		return 0;
+}
+
+int turn_90_degree(int back)
+{
+	if(back == 0)
+	{
+		if(cur_angle >= 90)
+		{
+			dest_x = cos(cur_angle-90)*1000 + cur_x;
+			dest_y = sin(cur_angle-90)*1000 + cur_y;
+		}
+		else if(cur_angle < 90)
+		{
+			dest_x = cos(cur_angle+270)*1000 + cur_x;
+			dest_y = sin(cur_angle+270)*1000 + cur_y;
+		}
+	}
+	else
+	{
+		if(cur_angle < 270)
+		{
+			dest_x = cos(cur_angle+90)*1000 + cur_x;
+			dest_y = sin(cur_angle+90)*1000 + cur_y;
+		}
+		else if(cur_angle >= 270)
+		{
+			dest_x = cos(cur_angle-270)*1000 + cur_x;
+			dest_y = sin(cur_angle-270)*1000 + cur_y;
+		}
+	}
+	if(turn_test(back) == 1)		
+		return 1;					
+	else
+		return 0;
+}
+
+
+
+//------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
 
 
 #define NUM_DECORS 8
@@ -1223,7 +1350,7 @@ int main(int argc, char** argv)
 
 	sfml_gui gui(win, arial);
 
-	#define BUT_WIDTH 220
+	#define BUT_WIDTH 200
 
 	int but_start_x = screen_x-BUT_WIDTH;
 
@@ -1245,11 +1372,16 @@ int main(int argc, char** argv)
 	int but_addconstraint  = gui.add_button(but_start_x, 70 + 8*35, 60, 25, "ADD", DEF_BUT_COL, DEF_BUT_FONT_SIZE, -1, DEF_BUT_COL_PRESSED, false);
 	int but_remconstraint  = gui.add_button(but_start_x+65, 70 + 8*35, 60, 25, "REM", DEF_BUT_COL, DEF_BUT_FONT_SIZE, -1, DEF_BUT_COL_PRESSED, false);
 
+	int but_test = gui.add_button(but_start_x, 70 + 9*35 , 100, 25, "Test", DEF_BUT_COL, DEF_BUT_FONT_SIZE, SYM_ROUTE, DEF_BUT_COL_PRESSED, false);
+
+	int but_test_next = gui.add_button(but_start_x+110, 70 + 9*35 , 30, 25, "Next", DEF_BUT_COL, DEF_BUT_FONT_SIZE, SYM_ROUTE, DEF_BUT_COL_PRESSED, false);
+
+	
 	int but_state_vect[STATE_VECT_LEN];
 
-	for(int i=0; i<STATE_VECT_LEN; i++)
+	for(int i=1; i<STATE_VECT_LEN; i++)
 	{
-		but_state_vect[i] = gui.add_button(but_start_x, 70 + 9*35 + i*25, 190, 18, state_vect_names[i], DEF_BUT_COL, /*font size:*/11, -1, DEF_BUT_COL_PRESSED, SYM_STOP);
+		but_state_vect[i] = gui.add_button(but_start_x, 70 + 9*35 + i*25, 140, 20, state_vect_names[i], DEF_BUT_COL, /*font size:*/10, -1, DEF_BUT_COL_PRESSED, SYM_STOP);
 		state_vect_to_send.table[i] = received_state_vect.table[i] = 0;
 	}
 	
@@ -1275,6 +1407,7 @@ int main(int argc, char** argv)
 		gui.buttons[but_pose]->pressed =       (click_mode==MODE_POSE);
 		gui.buttons[but_addconstraint]->pressed = (click_mode==MODE_ADDCONSTRAINT);
 		gui.buttons[but_remconstraint]->pressed = (click_mode==MODE_REMCONSTRAINT);
+		gui.buttons[but_test]->pressed =   		(click_mode==MODE_TEST);
 
 		state_is_unsynchronized = 0;
 		for(int i=0; i<STATE_VECT_LEN; i++)
@@ -1321,6 +1454,9 @@ int main(int argc, char** argv)
 				gui.buttons[but_speedplus]->x = but_start_x+115;
 				gui.buttons[but_addconstraint]->x = but_start_x;
 				gui.buttons[but_remconstraint]->x = but_start_x+65;
+				gui.buttons[but_test]->x = but_start_x;
+				gui.buttons[but_test_next]->x = but_start_x+110;
+
 		
 				for(int i=0; i<STATE_VECT_LEN; i++)
 				{
@@ -1635,7 +1771,7 @@ int main(int argc, char** argv)
 					}
 					break;
 
-
+/*
 					case 145: // State vector
 					{
 						if(len != STATE_VECT_LEN)
@@ -1644,11 +1780,11 @@ int main(int argc, char** argv)
 							break;
 						}
 
-						memcpy(received_state_vect.table, rxbuf, STATE_VECT_LEN);
-						memcpy(state_vect_to_send.table, rxbuf, STATE_VECT_LEN);
+						memcpy(received_state_vector.table, rxbuf, STATE_VECT_LEN);
+						memcpy(state_vector_to_send.table, rxbuf, STATE_VECT_LEN);
 					}
 					break;
-
+*/
 					default:
 					break;
 				}
@@ -1670,6 +1806,7 @@ int main(int argc, char** argv)
 				else if(but == but_pose)       click_mode = MODE_POSE;
 				else if(but == but_addconstraint) click_mode = MODE_ADDCONSTRAINT;
 				else if(but == but_remconstraint) click_mode = MODE_REMCONSTRAINT;
+				else if(but == but_test)  click_mode = MODE_TEST;
 
 				if(but == but_speedplus)
 				{
@@ -1767,7 +1904,7 @@ int main(int argc, char** argv)
 						if(!statebut_pressed[i])
 						{
 							statebut_pressed[i] = true;
-							state_vect_to_send.table[i] = received_state_vect.table[i]?0:1;
+							//state_vector_to_send.table[i] = received_state_vector[i]?0:1;
 							send_state_vect();
 						}				
 					}
@@ -1913,6 +2050,30 @@ int main(int argc, char** argv)
 								}
 
 							} break;
+							case MODE_TEST: {
+								printf("Before starting the Move straight test, please place a sticker in front of each forward wheels. Press “Next” for start the next step.");
+								wait_next();
+								go_1_meter(0);
+								printf("The “Go forward” step is done. Please place a sticker in front of each forward wheels and check if the destination is correctly reach. Press “Next” for start the next step.");
+								wait_next();
+								go_1_meter(1);
+								printf("The “Go backward” step is done. Please check if the destination is correctly reach. Press “Next” for start the next step.");
+								
+								wait_next();
+								printf("The Move straight test is over. Press “Next” for start the Turning test.");
+								
+								wait_next();
+								printf("Before starting the Turning test, please replace Pulu in front of the first stickers. Press “Next” for start the next step.");
+								wait_next();
+								turn_90_degree(0);
+								printf("The “Turn right” step is done. Please place a sticker in front of each forward wheels and check if pulu turns correctly with the good angle. Press “Next” for start the next step.");
+								wait_next();
+								turn_90_degree(1);
+								printf("The “Turn left” step is done. Please check if pulu turns correctly with the good angle. Press “Next” for start the next step.");
+								
+								wait_next();
+								printf("The Turning test is over. Place an object in front of Pulu and press “Next” for start the Pulutof test.");
+							}break;
 							default: break;
 						}
 
@@ -2103,7 +2264,7 @@ int main(int argc, char** argv)
 				t.setFillColor(sf::Color(200,200,0,255));
 			t.setString(tbuf);
 			t.setCharacterSize(14);
-			t.setPosition(but_start_x+35, 70 + 7*35);
+			t.setPosition(but_start_x+35, 70 + 9*35);
 			win.draw(t);
 		}
 
