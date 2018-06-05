@@ -1160,7 +1160,7 @@ void send_state_vect()
 
 //------------------------------------------------------------------------------------------------
 
-int wait_next(void)
+int wait_next(sfml_gui gui, sf::RenderWindow& win, int gui_box_x, int gui_box_xs, int gui_box_y, int gui_box_ys, int but_test_next)
 {
 	while(1)
 	{
@@ -2052,26 +2052,26 @@ int main(int argc, char** argv)
 							} break;
 							case MODE_TEST: {
 								printf("Before starting the Move straight test, please place a sticker in front of each forward wheels. Press “Next” for start the next step.");
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								go_1_meter(0);
 								printf("The “Go forward” step is done. Please place a sticker in front of each forward wheels and check if the destination is correctly reach. Press “Next” for start the next step.");
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								go_1_meter(1);
 								printf("The “Go backward” step is done. Please check if the destination is correctly reach. Press “Next” for start the next step.");
 								
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								printf("The Move straight test is over. Press “Next” for start the Turning test.");
 								
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								printf("Before starting the Turning test, please replace Pulu in front of the first stickers. Press “Next” for start the next step.");
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								turn_90_degree(0);
 								printf("The “Turn right” step is done. Please place a sticker in front of each forward wheels and check if pulu turns correctly with the good angle. Press “Next” for start the next step.");
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								turn_90_degree(1);
 								printf("The “Turn left” step is done. Please check if pulu turns correctly with the good angle. Press “Next” for start the next step.");
 								
-								wait_next();
+								wait_next(gui, win, gui_box_x, gui_box_xs, gui_box_y, gui_box_ys, but_test_next);
 								printf("The Turning test is over. Place an object in front of Pulu and press “Next” for start the Pulutof test.");
 							}break;
 							default: break;
